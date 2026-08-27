@@ -2,7 +2,10 @@ data/
 *.parquet
 *.csv
 *.gz
-*.joblib
-models/*.joblib
 .ipynb_checkpoints/
 __pycache__/
+*.db
+
+# Exclude model binaries generally, but keep the one the service deploys
+*.joblib
+!artefact/app/model/xgb_model.joblib
