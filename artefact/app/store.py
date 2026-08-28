@@ -68,7 +68,24 @@ class HistoryStore:
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
             self.backend = "sqlite"
 
+        # Neon and similar serverless Postgres suspend when idle and take a few
+        # seconds to wake. If the database is unreachable at startup we must not
+        # crash the container: start degraded, report it via /health, and retry
+        # schema initialisation on the next request.
+        self._schema_ready = False
+        try:
+            self._init_schema()
+            self._schema_ready = True
+        except Exception as exc:  # noqa: BLE001
+            print(f"WARNING: history store unavailable at startup ({exc}). "
+                  "Service will start in degraded mode and retry on first use.")
+
+    def _ensure_schema(self) -> None:
+        """Retry schema creation if the database was asleep at startup."""
+        if self._schema_ready:
+            return
         self._init_schema()
+        self._schema_ready = True
 
     # ------------------------------------------------------------- plumbing
     def _connect(self):
@@ -140,6 +157,7 @@ class HistoryStore:
                        build_ref: str | None = None,
                        finished_at: datetime | None = None) -> None:
         """Record a completed build. Call this AFTER the build finishes."""
+        self._ensure_schema()
         ts = (finished_at or datetime.now(timezone.utc)).isoformat()
         self._execute(
             "INSERT INTO builds (project, build_ref, failed, finished_at) VALUES (?, ?, ?, ?)",
@@ -164,6 +182,7 @@ class HistoryStore:
         project has no history; features.py converts those into missing-value
         indicator flags rather than silently imputing zero.
         """
+        self._ensure_schema()
         now = now or datetime.now(timezone.utc)
 
         recent = self._fetch(
@@ -243,6 +262,7 @@ class HistoryStore:
     def health(self) -> dict:
         """Backend status, surfaced by /health so a broken database is visible."""
         try:
+            self._ensure_schema()
             self._fetch("SELECT 1 AS ok", one=True)
             return {"backend": self.backend, "connected": True, "persistent": self.is_pg}
         except Exception as exc:  # noqa: BLE001

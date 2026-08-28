@@ -98,6 +98,94 @@ On the ephemeral filesystem it would have reset to zero.
 - **Cold-start predictions.** A project with no recorded history is scored on
   code features alone. The response flags this via `history_available: false`.
 
+
+---
+
+# Deploying to Hugging Face Spaces (no payment card required)
+
+Render now asks for a card even on its free tier. Hugging Face Spaces does not,
+and its free Docker tier is sufficient for this service.
+
+## 1. Create the Space
+
+1. Sign up at https://huggingface.co and verify your email.
+2. Click your avatar -> **New Space**.
+3. Settings:
+
+   | Field | Value |
+   |---|---|
+   | Space name | `cicd-risk-gate` |
+   | License | MIT |
+   | SDK | **Docker** -> **Blank** template |
+   | Hardware | CPU basic (free) |
+   | Visibility | Public |
+
+4. Create the Space. You now have a git repository at
+   `https://huggingface.co/spaces/<username>/cicd-risk-gate`.
+
+## 2. Add the database secret
+
+In the Space: **Settings** -> **Variables and secrets** -> **New secret**.
+
+| Name | Value |
+|---|---|
+| `DATABASE_URL` | your Neon connection string |
+
+Use a **secret**, not a variable — secrets are hidden from the public build logs,
+and the connection string contains a password.
+
+Add `POLICY_MODE` = `shadow` as a plain **variable** (it is not sensitive).
+
+## 3. Push the code
+
+Clone the Space repository and copy the artefact into it:
+
+    git clone https://huggingface.co/spaces/<username>/cicd-risk-gate
+    cd cicd-risk-gate
+
+Copy in: `Dockerfile`, `requirements.txt`, the `app/` folder including
+`app/model/`, and rename `SPACE_README.md` to `README.md` — the YAML block at
+its top is what configures the Space.
+
+    git add .
+    git commit -m "Deploy CI/CD failure prediction service"
+    git push
+
+Hugging Face asks for a username and an **access token** (not your password).
+Create one at Settings -> Access Tokens with **write** permission.
+
+Note: `app/model/xgb_model.joblib` is about 2 MB, well within normal git limits.
+
+## 4. Verify
+
+The Space builds automatically; watch the **Logs** tab. Expect:
+
+    Model loaded: xgb-v1.0 | threshold=0.800 | policy=shadow
+    History store: postgresql | connected=True | persistent=True
+
+Then open:
+
+    https://<username>-cicd-risk-gate.hf.space/health
+    https://<username>-cicd-risk-gate.hf.space/docs
+
+`"persistent": true` confirms the Neon database is wired up correctly.
+
+## 5. Use the URL in GitHub Actions
+
+Set the repository secret `PREDICT_URL` to
+`https://<username>-cicd-risk-gate.hf.space` (no trailing slash).
+
+## Notes
+
+- Free Spaces sleep after roughly 48 hours of inactivity and wake on the next
+  request. Neon also suspends its compute when idle. The service is built to
+  tolerate both: if the database is unreachable at startup it begins in degraded
+  mode, reports this via `/health`, and reconnects automatically on first use
+  rather than crash-looping.
+- The container listens on port 7860, which is what Spaces expects. `PORT` is
+  still honoured if set, so the same image runs unchanged on Render or Koyeb.
+
+
 ## Local development
 
 No `DATABASE_URL` needed — the store falls back to SQLite automatically:
