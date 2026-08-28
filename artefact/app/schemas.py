@@ -124,6 +124,9 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     model_version: str
     n_features: int
+    storage: dict = Field(
+        default_factory=dict,
+        description="History store backend, connectivity and whether it persists across restarts")
 
 
 class ModelInfoResponse(BaseModel):

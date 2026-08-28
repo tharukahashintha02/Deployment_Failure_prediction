@@ -142,12 +142,19 @@ construction, and there is a test asserting this.
 
 ---
 
+## Deployment
+
+See `DEPLOYMENT.md` for the full deployment procedure (Neon Postgres + Render).
+In short: set `DATABASE_URL` to a Postgres connection string so the build history
+survives restarts, and set `POLICY_MODE=shadow` to begin.
+
 ## Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `MODEL_DIR` | `app/model` | Where the model and metadata live |
-| `DB_PATH` | `data/history.db` | SQLite history store |
+| `DATABASE_URL` | unset | Postgres connection string. When set, the history store uses Postgres instead of SQLite. Required for deployment on an ephemeral filesystem. |
+| `DB_PATH` | `data/history.db` | SQLite file, used only when `DATABASE_URL` is unset |
 | `POLICY_MODE` | `shadow` | `shadow` \| `warn` \| `block` |
 | `RISK_THRESHOLD` | from metadata | Override the decision threshold |
 | `PORT` | `8000` | Listen port |

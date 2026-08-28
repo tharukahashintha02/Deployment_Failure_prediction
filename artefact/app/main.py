@@ -79,6 +79,15 @@ def _load_model() -> None:
     print(f"Model loaded: {state['metadata'].get('model_version', 'unknown')} | "
           f"threshold={state['threshold']:.3f} | policy={POLICY.value}")
 
+    sh = store.health()
+    print(f"History store: {sh['backend']} | connected={sh['connected']} | "
+          f"persistent={sh['persistent']}")
+    if not sh["persistent"]:
+        print("WARNING: history store is NOT persistent. On an ephemeral filesystem "
+              "every project resets to cold start after a restart, and predictions "
+              "fall back to code features only. Set DATABASE_URL to a Postgres "
+              "instance for deployment.")
+
 
 app = FastAPI(
     title="CI/CD Failure Prediction Service",
@@ -175,11 +184,14 @@ def record_outcome(req: OutcomeRequest) -> OutcomeResponse:
 
 @app.get("/health", response_model=HealthResponse, tags=["ops"])
 def health() -> HealthResponse:
+    storage = store.health()
+    ok = state["model"] is not None and storage.get("connected")
     return HealthResponse(
-        status="ok" if state["model"] is not None else "degraded",
+        status="ok" if ok else "degraded",
         model_loaded=state["model"] is not None,
         model_version=state["metadata"].get("model_version", "unknown"),
         n_features=len(FEATURE_ORDER),
+        storage=storage,
     )
 
 
