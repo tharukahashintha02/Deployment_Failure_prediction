@@ -8,7 +8,7 @@ WORKDIR /code
 
 # libgomp1 is required by the xgboost and shap wheels
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libgomp1 && rm -rf /var/lib/apt/lists/*
+    libgomp1 && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -29,6 +29,6 @@ EXPOSE 7860
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
     CMD python -c "import os,urllib.request,sys; \
-        sys.exit(0 if urllib.request.urlopen(f\"http://localhost:{os.getenv('PORT','7860')}/health\").status==200 else 1)"
+    sys.exit(0 if urllib.request.urlopen(f\"http://localhost:{os.getenv('PORT','7860')}/health\").status==200 else 1)"
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
