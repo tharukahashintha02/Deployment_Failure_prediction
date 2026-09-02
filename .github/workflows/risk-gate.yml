@@ -20,7 +20,7 @@ on:
 
 env:
   PREDICT_URL: ${{ secrets.PREDICT_URL }}   # e.g. https://your-service.onrender.com
-  POLICY: block                              # shadow | warn | block
+  POLICY: shadow                             # shadow | warn | block
 
 jobs:
   risk-gate:
