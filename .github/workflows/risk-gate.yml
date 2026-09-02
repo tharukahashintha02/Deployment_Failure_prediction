@@ -1,0 +1,171 @@
+# CI/CD Risk Gate — demonstrates Q4 of the research proposal.
+#
+# Flow:
+#   1. collect code-change features from the git diff
+#   2. POST them to the prediction service
+#   3. apply the gating policy (shadow / warn / block)
+#   4. run the actual build
+#   5. POST the outcome back so the history store stays current
+#
+# Step 5 is not optional. The model's strongest features describe recent build
+# history; a pipeline that predicts but never reports outcomes degrades to
+# code-metrics-only performance (~0.64 AUC instead of ~0.88).
+
+name: Build with Risk Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+env:
+  PREDICT_URL: ${{ secrets.PREDICT_URL }}   # e.g. https://your-service.onrender.com
+  POLICY: warn                              # shadow | warn | block
+
+jobs:
+  risk-gate:
+    runs-on: ubuntu-latest
+    outputs:
+      risk_score: ${{ steps.predict.outputs.risk_score }}
+      decision: ${{ steps.predict.outputs.decision }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2          # need the parent commit to diff against
+
+      - name: Collect code-change features
+        id: features
+        run: |
+          # numstat gives added/deleted lines per file
+          DIFF=$(git diff --numstat HEAD~1 HEAD || echo "")
+
+          SRC_CHURN=0; TEST_CHURN=0
+          SRC_FILES=0; TEST_FILES=0; DOC_FILES=0; OTHER_FILES=0
+
+          while IFS=$'\t' read -r added deleted path; do
+            [ -z "$path" ] && continue
+            [ "$added" = "-" ] && continue          # binary file
+            CHURN=$((added + deleted))
+            case "$path" in
+              *test*|*spec*|*Test*|*Spec*)
+                TEST_CHURN=$((TEST_CHURN + CHURN)); TEST_FILES=$((TEST_FILES + 1)) ;;
+              *.md|*.txt|*.rst|docs/*)
+                DOC_FILES=$((DOC_FILES + 1)) ;;
+              *.rb|*.java|*.py|*.js|*.ts|*.go)
+                SRC_CHURN=$((SRC_CHURN + CHURN)); SRC_FILES=$((SRC_FILES + 1)) ;;
+              *)
+                OTHER_FILES=$((OTHER_FILES + 1)) ;;
+            esac
+          done <<< "$DIFF"
+
+          FILES_MODIFIED=$(git diff --name-only HEAD~1 HEAD | wc -l)
+          SLOC=$(find . -name '*.rb' -o -name '*.java' -o -name '*.py' 2>/dev/null \
+                 | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}' || echo 0)
+
+          {
+            echo "src_churn=$SRC_CHURN"
+            echo "test_churn=$TEST_CHURN"
+            echo "src_files=$SRC_FILES"
+            echo "doc_files=$DOC_FILES"
+            echo "other_files=$OTHER_FILES"
+            echo "files_modified=$FILES_MODIFIED"
+            echo "sloc=${SLOC:-0}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Request risk score
+        id: predict
+        run: |
+          PAYLOAD=$(cat <<JSON
+          {
+            "project": "${{ github.repository }}",
+            "build_ref": "${{ github.sha }}",
+            "git_diff_src_churn": ${{ steps.features.outputs.src_churn }},
+            "git_diff_test_churn": ${{ steps.features.outputs.test_churn }},
+            "gh_diff_files_modified": ${{ steps.features.outputs.files_modified }},
+            "gh_diff_src_files": ${{ steps.features.outputs.src_files }},
+            "gh_diff_doc_files": ${{ steps.features.outputs.doc_files }},
+            "gh_diff_other_files": ${{ steps.features.outputs.other_files }},
+            "gh_sloc": ${{ steps.features.outputs.sloc }},
+            "is_pr": ${{ github.event_name == 'pull_request' }},
+            "branch": "${{ github.ref_name }}"
+          }
+          JSON
+          )
+
+          RESPONSE=$(curl -sS --max-time 10 -X POST "$PREDICT_URL/predict" \
+             -H 'Content-Type: application/json' \
+             -H 'ngrok-skip-browser-warning: true' -d "$PAYLOAD") || {
+            echo "::warning::Prediction service unreachable — allowing build (fail-open)"
+            echo "risk_score=0" >> "$GITHUB_OUTPUT"
+            echo "decision=UNAVAILABLE" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          SCORE=$(echo "$RESPONSE" | jq -r '.risk_score')
+          DECISION=$(echo "$RESPONSE" | jq -r '.decision')
+
+          echo "risk_score=$SCORE" >> "$GITHUB_OUTPUT"
+          echo "decision=$DECISION" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Deployment Risk Assessment"
+            echo ""
+            echo "**Risk score:** $SCORE"
+            echo "**Decision:** $DECISION"
+            echo "**Policy:** $POLICY"
+            echo ""
+            echo "### Contributing factors"
+            echo "$RESPONSE" | jq -r '.top_factors[] |
+              "- `\(.feature)` = \(.value) (contribution \(.contribution))"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply gating policy
+        run: |
+          SCORE="${{ steps.predict.outputs.risk_score }}"
+          DECISION="${{ steps.predict.outputs.decision }}"
+
+          case "$POLICY" in
+            shadow)
+              echo "SHADOW: risk $SCORE ($DECISION) — logged, build proceeds"
+              ;;
+            warn)
+              if [ "$DECISION" = "HIGH_RISK" ]; then
+                echo "::warning title=High deployment risk::Risk $SCORE — review before merging"
+              fi
+              ;;
+            block)
+              if [ "$DECISION" = "HIGH_RISK" ]; then
+                echo "::error title=Build blocked::Risk $SCORE exceeds threshold"
+                exit 1
+              fi
+              ;;
+          esac
+
+  build:
+    needs: risk-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run build and tests
+        id: build
+        continue-on-error: true
+        run: |
+          echo "Replace with your real build command"
+          # bundle exec rake test   /   mvn test   /   pytest
+
+      - name: Report outcome to prediction service
+        if: always()
+        run: |
+          FAILED=$([ "${{ steps.build.outcome }}" = "failure" ] && echo true || echo false)
+                    curl -sS --max-time 10 -X POST "$PREDICT_URL/outcome" \
+            -H 'Content-Type: application/json' \
+            -H 'ngrok-skip-browser-warning: true' \
+            -d "{\"project\":\"${{ github.repository }}\",
+                 \"build_ref\":\"${{ github.sha }}\",
+                 \"failed\":$FAILED}" \
+            || echo "::warning::Could not report outcome — history will be incomplete"
+
+      - name: Propagate build result
+        if: steps.build.outcome == 'failure'
+        run: exit 1
