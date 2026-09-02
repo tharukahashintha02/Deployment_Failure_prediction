@@ -158,7 +158,7 @@ jobs:
         if: always()
         run: |
           FAILED=$([ "${{ steps.build.outcome }}" = "failure" ] && echo true || echo false)
-                    curl -sS --max-time 10 -X POST "$PREDICT_URL/outcome" \
+          curl -sS --max-time 10 -X POST "$PREDICT_URL/outcome" \
             -H 'Content-Type: application/json' \
             -H 'ngrok-skip-browser-warning: true' \
             -d "{\"project\":\"${{ github.repository }}\",
