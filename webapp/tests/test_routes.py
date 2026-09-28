@@ -27,7 +27,7 @@ def test_board_page_renders(client):
 
 def test_board_shows_the_live_version(client):
     body = client.get("/").get_data(as_text=True)
-    assert "v2.4.1" in body
+    assert "v2.5.0" in body
     assert 'id="live-release"' in body
 
 
@@ -35,8 +35,8 @@ def test_api_returns_releases_newest_first(client):
     response = client.get("/api/releases")
     assert response.status_code == 200
     data = response.get_json()
-    assert len(data) == 4
-    assert data[0]["version"] == "v2.4.1"
+    assert len(data) == 5
+    assert data[0]["version"] == "v2.5.0"
     assert data[0]["health"] == "healthy"
 
 

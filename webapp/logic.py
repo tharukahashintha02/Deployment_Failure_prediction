@@ -70,6 +70,9 @@ def summarise(releases: list[dict]) -> dict:
 def sample_releases() -> list[dict]:
     """Stand-in data. A real board would read this from a deployment record."""
     return [
+        {"version": "v2.5.0", "commit": "9f3a2c1", "author": "tharuka",
+         "deployed_at": datetime(2026, 9, 29, 10, 5), "error_rate": 0.0,
+         "note": "Search across release notes"},
         {"version": "v2.4.1", "commit": "0b7e1be", "author": "tharuka",
          "deployed_at": datetime(2026, 9, 28, 14, 12), "error_rate": 0.0,
          "note": "Cache warm-up on boot"},
