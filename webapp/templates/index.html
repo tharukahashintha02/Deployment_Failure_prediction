@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release board</title>
+<style>
+  :root {
+    --ink:      #1F2E33;
+    --slate:    #264653;
+    --teal:     #2A9D8F;
+    --clay:     #E76F51;
+    --sand:     #E9C46A;
+    --paper:    #FBFAF8;
+    --rule:     #DFE4E6;
+    --muted:    #6E7F86;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 3.5rem 2rem 4rem;
+  }
+
+  /* ---- masthead: the live version is the hero ---- */
+  .live {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2rem;
+    align-items: end;
+    padding-bottom: 1.75rem;
+    border-bottom: 2px solid var(--slate);
+  }
+
+  .live h1 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.01em;
+  }
+
+  .version {
+    margin: 0.35rem 0 0;
+    font-size: clamp(3.2rem, 9vw, 5.4rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 0.95;
+    font-variant-numeric: tabular-nums;
+    color: var(--slate);
+  }
+
+  .live-meta {
+    margin: 0.55rem 0 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .live-meta code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    background: #EEF2F3;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    color: var(--slate);
+  }
+
+  .state {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .state .word {
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .state .detail {
+    display: block;
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-top: 0.2rem;
+  }
+
+  .healthy  .word { color: var(--teal); }
+  .watch    .word { color: #B8860B; }
+  .degraded .word { color: var(--clay); }
+
+  /* ---- history ---- */
+  h2 {
+    margin: 2.75rem 0 0.25rem;
+    font-size: 1rem;
+    font-weight: 650;
+    color: var(--slate);
+  }
+
+  .history { list-style: none; margin: 0; padding: 0; }
+
+  .release {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr) 7rem;
+    gap: 1.25rem;
+    align-items: baseline;
+    padding: 1rem 0 1rem 1rem;
+    border-bottom: 1px solid var(--rule);
+    border-left: 3px solid transparent;
+  }
+
+  .release.healthy  { border-left-color: var(--teal); }
+  .release.watch    { border-left-color: var(--sand); }
+  .release.degraded { border-left-color: var(--clay); }
+
+  .release .tag {
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: var(--slate);
+  }
+
+  .release .note { color: var(--ink); }
+
+  .release .when,
+  .release .rate {
+    color: var(--muted);
+    font-size: 0.88rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .release .sub {
+    display: block;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 0.15rem;
+  }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 34rem) {
+    .live { grid-template-columns: 1fr; align-items: start; }
+    .state { text-align: left; }
+    .release { grid-template-columns: 1fr; gap: 0.25rem; }
+    .release .when, .release .rate { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  {% set live = summary.live %}
+  <section class="live" id="live-release">
+    <div>
+      <h1>Currently deployed</h1>
+      <p class="version">{{ live.version }}</p>
+      <p class="live-meta">
+        commit <code>{{ live.commit }}</code>,
+        deployed {{ live.deployed_at.strftime('%d %b at %H:%M') }}
+      </p>
+    </div>
+    <div class="state {{ releases[0].health }}">
+      <span class="word">{{ releases[0].health }}</span>
+      <span class="detail">{{ '%.1f'|format(live.error_rate) }}% errors</span>
+      <span class="detail">{{ summary.healthy_streak }} clean releases</span>
+    </div>
+  </section>
+
+  <h2>Recent releases</h2>
+  <ul class="history">
+    {% for r in releases %}
+    <li class="release {{ r.health }}">
+      <span class="tag">{{ r.version }}</span>
+      <span class="note">
+        {{ r.note }}
+        <span class="sub">{{ r.author }}, {{ r.commit }}</span>
+      </span>
+      <span class="rate">
+        {{ '%.1f'|format(r.error_rate) }}%
+        <span class="sub">{{ r.deployed_at.strftime('%d %b') }}</span>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <footer>
+    {{ summary.total }} releases recorded, {{ summary.degraded }} degraded.
+  </footer>
+
+</div>
+</body>
+</html>
