@@ -1,0 +1,36 @@
+{
+  "label": "docker2",
+  "timestamp": "2026-09-28T17:13:27",
+  "machine": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "cpu": "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel",
+    "python": "3.12.4"
+  },
+  "health": {
+    "status": "ok",
+    "model_loaded": true,
+    "model_version": "xgb-v1.0",
+    "n_features": 46,
+    "storage": {
+      "backend": "sqlite",
+      "connected": true,
+      "persistent": false
+    }
+  },
+  "end_to_end_ms": {
+    "n": 500,
+    "mean": 34.9,
+    "p50": 32.0,
+    "p95": 54.7,
+    "p99": 69.7,
+    "max": 117.0
+  },
+  "server_reported_ms": {
+    "n": 500,
+    "mean": 26.2,
+    "p50": 25.3,
+    "p95": 33.4,
+    "p99": 56.7,
+    "max": 102.0
+  }
+}

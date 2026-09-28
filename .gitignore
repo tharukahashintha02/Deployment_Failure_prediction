@@ -9,3 +9,4 @@ __pycache__/
 # Exclude model binaries generally, but keep the one the service deploys
 *.joblib
 !artefact/app/model/xgb_model.joblib
+.venv/

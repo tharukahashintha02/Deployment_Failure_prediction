@@ -1,0 +1,14 @@
+{
+  "branch": "feature/new-auth",
+  "build_ref": "a1b2c3d",
+  "gh_diff_files_modified": 8,
+  "gh_diff_src_files": 6,
+  "gh_sloc": 45000,
+  "gh_team_size": 7,
+  "gh_test_lines_per_kloc": 180,
+  "git_diff_src_churn": 340,
+  "git_diff_test_churn": 12,
+  "is_pr": true,
+  "language": "ruby",
+  "project": "latency-test"
+}
